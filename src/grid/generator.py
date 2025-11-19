@@ -42,9 +42,11 @@ class DfsMazeGenerator(MazeGeneratingAlgorithm):
         for dy in range(-2, 3, 2):
             for dx in range(-2, 3, 2):
                 nx, ny = x + dx, y + dy
-                if (matrix.is_on_grid((nx, ny)) and
-                    cls.is_not_corner((nx, ny), x, y) and
-                    cls.is_not_node((nx, ny), x, y)):
+                if (
+                        matrix.is_on_grid((nx, ny)) and
+                        cls.is_not_corner((nx, ny), x, y) and
+                        cls.is_not_node((nx, ny), x, y)
+                ):
                     neighbors.append((nx, ny))
         return neighbors
 
@@ -53,17 +55,17 @@ class DfsMazeGenerator(MazeGeneratingAlgorithm):
         """Generate a maze using DFS algorithm."""
         result = GridMatrix(rows, columns, preset=True)
 
-        # Clear the last row if it's beyond the odd-numbered boundary
         for x in range(floor((result.rows - 1) / 2) * 2 + 1, result.rows):
             for y in range(result.columns):
                 result.try_reset_cell((x, y))
 
-        # Clear the last column if it's beyond the odd-numbered boundary
-        for y in range(floor((result.columns - 1) / 2) * 2 + 1, result.columns):
+        for y in range(
+                floor((result.columns - 1) / 2) * 2 + 1,
+                result.columns,
+        ):
             for x in range(result.rows):
                 result.try_reset_cell((x, y))
 
-        # Start at a random even coordinate
         start_x = randint(0, floor((result.rows - 1) / 2)) * 2
         start_y = randint(0, floor((result.columns - 1) / 2)) * 2
 
@@ -85,7 +87,6 @@ class DfsMazeGenerator(MazeGeneratingAlgorithm):
                     result.try_reset_cell(neighbor)
                     visited.add(neighbor)
 
-                    # Carve a path between current cell and neighbor
                     cx, cy = current_cell
                     nx, ny = neighbor
                     if nx == cx:

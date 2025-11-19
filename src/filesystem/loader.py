@@ -1,4 +1,5 @@
 from grid.matrix import GridMatrix
+from .exceptions import GridLoadException, FileFormatException
 
 
 class Loader:

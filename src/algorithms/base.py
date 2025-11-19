@@ -1,7 +1,6 @@
-from abc import ABC, abstractmethod
-from queue import Queue
-import typing as t
 import dataclasses as dc
+import typing as t
+from abc import ABC, abstractmethod
 
 from grid import GridMatrix, Cell
 
@@ -10,28 +9,8 @@ from grid import GridMatrix, Cell
 class SolveStep:
     """Represents a single step in the solving process."""
 
-    selected: Cell
-    used: t.List[Cell] = dc.field(default_factory=list)
-    path: t.Dict[Cell, t.Optional[Cell]] = dc.field(default_factory=dict)
-
-
-class SolveQueue:
-    """A queue for storing steps during pathfinding algorithm execution."""
-
-    def __init__(self):
-        self._queue = Queue()
-
-    def enqueue(self, step: SolveStep):
-        """Add a new step to the queue."""
-        self._queue.put(step)
-
-    def dequeue(self) -> SolveStep:
-        """Remove and return the next step from the queue."""
-        return self._queue.get()
-
-    def is_empty(self) -> bool:
-        """Check if the queue is empty."""
-        return self._queue.empty()
+    selected_node: Cell
+    from_node: Cell
 
 
 class PathFindingAlgorithm(ABC):
@@ -50,13 +29,13 @@ class PathFindingAlgorithm(ABC):
 
     @classmethod
     @abstractmethod
-    def get_solve_queue(
+    def solve_trace(
             cls,
             grid: GridMatrix,
             source: Cell,
             target: Cell,
-    ) -> SolveQueue:
-        """Return a queue of steps for visualization."""
+    ) -> t.Iterator[SolveStep]:
+        """Yield steps for visualization of the pathfinding process."""
         pass
 
     @staticmethod
@@ -65,7 +44,9 @@ class PathFindingAlgorithm(ABC):
             source: Cell,
             target: Cell,
     ) -> t.List[Cell]:
-        """Reconstruct the path from source to target using the came_from map."""
+        """
+        Reconstruct the path from source to target using the came_from map.
+        """
         if target in came_from:
             current: Cell = target
             path: t.List[Cell] = []
@@ -78,7 +59,7 @@ class PathFindingAlgorithm(ABC):
         return []
 
     @staticmethod
-    def _get_cost(from_node:Cell, to_node: Cell) -> float:
+    def _get_cost(from_node: Cell, to_node: Cell) -> float:
         """Calculate the cost of moving from one node to another."""
         prev_cost = 1
         nudge = 0

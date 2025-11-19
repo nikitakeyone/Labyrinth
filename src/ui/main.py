@@ -15,20 +15,65 @@ from filesystem.dumper import Dumper
 from filesystem.exceptions import GridFileException
 from filesystem.loader import Loader
 from grid.generator import DfsMazeGenerator
-from .solver import SolverGridWidget
+
+from .solver import SolverGridWidget, SolverStateType, DrawMode
 
 
 class MainWindow(QtWidgets.QMainWindow):
     """Main application window for the pathfinding visualizer."""
 
     def __init__(self):
+        """."""
         super().__init__()
         self.algorithms: t.Dict[str, t.Type[PathFindingAlgorithm]] = {
             "A*": AStarAlgorithm,
             "Dijkstra Search": DijkstraAlgorithm,
             "Breadth-first Search": BfsAlgorithm,
         }
-        self.setup_ui()
+
+        self.setObjectName("MainWindow")
+        self.setMinimumSize(824, 624)
+
+        self.centralwidget = QtWidgets.QWidget(self)
+        self.centralwidget.setObjectName("centralwidget")
+
+        self.grid_layout = QtWidgets.QGridLayout(self.centralwidget)
+        self.grid_layout.setObjectName("gridLayout")
+
+        self.horizontal_layout = QtWidgets.QHBoxLayout()
+        self.horizontal_layout.setObjectName("horizontalLayout")
+        self.horizontal_layout.setContentsMargins(8, 8, 8, 8)
+        self.horizontal_layout.setAlignment(Qt.AlignCenter)
+
+        self.vertical_layout_widget = QtWidgets.QWidget(self.centralwidget)
+        self.vertical_layout_widget.setObjectName("verticalLayoutWidget")
+        self.vertical_layout_widget.setGeometry(QtCore.QRect(0, 0, 210, 582))
+        self.vertical_layout_widget.setFixedSize(210, 582)
+
+        self.vertical_layout = QtWidgets.QVBoxLayout(
+            self.vertical_layout_widget,
+        )
+        self.vertical_layout.setObjectName("verticalLayout")
+
+        self._setup_settings_group_box()
+        self._setup_algorithm_group_box()
+
+        self.grid_widget = SolverGridWidget(50, 50, self.centralwidget)
+        self.grid_widget.setObjectName("gridSolver")
+
+        self.row_label.setText(f"Number of rows: {self.grid_widget.grid.rows}")
+        self.column_label.setText(
+            f"Number of columns: {self.grid_widget.grid.columns}",
+        )
+
+        self.row_slider.valueChanged.connect(self._resize_grid)
+        self.column_slider.valueChanged.connect(self._resize_grid)
+
+        self.horizontal_layout.addWidget(self.grid_widget)
+
+        self.grid_layout.addLayout(self.horizontal_layout, 0, 0, 1, 1)
+        self.setCentralWidget(self.centralwidget)
+        QtCore.QMetaObject.connectSlotsByName(self)
 
         self.grid_widget.add_state_callback(self._on_state_changed)
 
@@ -56,23 +101,23 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _on_state_changed(self):
         """Handle changes in the solver's state."""
-        if self.grid_widget.state == SolverGridWidget.State.solving:
+        if self.grid_widget.state == SolverStateType.solving:
             self.start_button.setText("Skip")
             self._disable_grid_editing()
-        elif self.grid_widget.state == SolverGridWidget.State.solved:
+        elif self.grid_widget.state == SolverStateType.solved:
             self.start_button.setText("Finish")
-        elif self.grid_widget.state == SolverGridWidget.State.viewing:
+        elif self.grid_widget.state == SolverStateType.viewing:
             self.start_button.setText("Start")
             self._enable_grid_editing()
 
     def _process_start_button(self):
         """Handle the start button click based on current state."""
-        if self.grid_widget.state == SolverGridWidget.State.solving:
-            self.grid_widget.state = SolverGridWidget.State.solved
-        elif self.grid_widget.state == SolverGridWidget.State.solved:
-            self.grid_widget.state = SolverGridWidget.State.viewing
-        elif self.grid_widget.state == SolverGridWidget.State.viewing:
-            self.grid_widget.state = SolverGridWidget.State.solving
+        if self.grid_widget.state == SolverStateType.solving:
+            self.grid_widget.state = SolverStateType.solved
+        elif self.grid_widget.state == SolverStateType.solved:
+            self.grid_widget.state = SolverStateType.viewing
+        elif self.grid_widget.state == SolverStateType.viewing:
+            self.grid_widget.start_solving()
 
     def _resize_grid(self):
         """Resize the grid based on slider values."""
@@ -80,10 +125,11 @@ class MainWindow(QtWidgets.QMainWindow):
         new_cols = floor(self.column_slider.value() / 100 * 90) + 10
         self.grid_widget.resize_grid(new_rows, new_cols)
 
-        self.row_label.setText(f"Number of rows: {self.grid_widget.grid.rows}")
+        self.row_label.setText(
+            f"Number of rows: {self.grid_widget.grid.rows}",
+        )
         self.column_label.setText(
-            f"Number of columns: "
-            f"{self.grid_widget.grid.columns}",
+            f"Number of columns: {self.grid_widget.grid.columns}",
         )
 
     def _generate_random_grid(self):
@@ -92,25 +138,30 @@ class MainWindow(QtWidgets.QMainWindow):
             self.grid_widget.grid.rows, self.grid_widget.grid.columns
         )
 
-        if self.grid_widget.grid.get_cell(self.grid_widget.target):
-            self.grid_widget.grid.try_reset_cell(self.grid_widget.target)
+        if self.grid_widget.grid.get_cell(self.grid_widget.model.target):
+            self.grid_widget.grid.try_reset_cell(
+                cell=self.grid_widget.model.target,
+            )
 
-        if self.grid_widget.grid.get_cell(self.grid_widget.source):
-            self.grid_widget.grid.try_reset_cell(self.grid_widget.source)
+        if self.grid_widget.grid.get_cell(self.grid_widget.model.source):
+            self.grid_widget.grid.try_reset_cell(
+                cell=self.grid_widget.model.source,
+            )
 
+        self.grid_widget.invalidate_cache()
         self.update()
 
     def _set_walls_draw_mode(self):
         """Set the draw mode to walls."""
-        self.grid_widget.draw_mode = SolverGridWidget.DrawMode.walls
+        self.grid_widget.draw_mode = DrawMode.walls
 
     def _set_target_draw_mode(self):
         """Set the draw mode to target."""
-        self.grid_widget.draw_mode = SolverGridWidget.DrawMode.target
+        self.grid_widget.draw_mode = DrawMode.target
 
     def _set_source_draw_mode(self):
         """Set the draw mode to source."""
-        self.grid_widget.draw_mode = SolverGridWidget.DrawMode.source
+        self.grid_widget.draw_mode = DrawMode.source
 
     def _draw_mode_change_handler(self):
         """Handle changes in the draw mode combo box."""
@@ -169,10 +220,12 @@ class MainWindow(QtWidgets.QMainWindow):
                     loaded_grid.rows,
                     loaded_grid.columns,
                 )
+                self.grid_widget.invalidate_cache()  # Обновляем кэш сетки
                 self.update()
 
                 self.row_slider.setValue(
-                    int(floor(10 * loaded_grid.rows - 100) / 9)),
+                    int(floor(10 * loaded_grid.rows - 100) / 9),
+                )
                 self.column_slider.setValue(
                     int(floor(10 * loaded_grid.columns - 100) / 9),
                 )
@@ -196,7 +249,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.filepicker_group_box,
         )
         self.filepicker_layout_widget.setObjectName("filepickerLayoutWidget")
-        self.filepicker_layout_widget.setGeometry(QtCore.QRect(8, 16, 150, 128))
+        self.filepicker_layout_widget.setGeometry(
+            QtCore.QRect(8, 16, 150, 128),
+        )
 
         layout = QtWidgets.QVBoxLayout(self.filepicker_layout_widget)
         self.settings_layout.addWidget(self.filepicker_group_box)
@@ -295,7 +350,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.settings_group_box.setTitle("Maze Grid Editing")
         self.settings_group_box.setFixedHeight(410)
 
-        self.settings_layout_widget = QtWidgets.QWidget(self.settings_group_box)
+        self.settings_layout_widget = QtWidgets.QWidget(
+            self.settings_group_box,
+        )
         self.settings_layout_widget.setObjectName("settingsLayoutWidget")
         self.settings_layout_widget.setGeometry(QtCore.QRect(8, 16, 176, 390))
 
@@ -325,7 +382,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.paint_layout.setObjectName("paintLayout")
         self.paint_layout.setContentsMargins(8, 8, 8, 8)
 
-        self.draw_mode_combo_box = QtWidgets.QComboBox(self.paint_layout_widget)
+        self.draw_mode_combo_box = QtWidgets.QComboBox(
+            self.paint_layout_widget,
+        )
         self.draw_mode_combo_box.addItems(["Walls", "Target", "Source"])
         self.draw_mode_combo_box.setObjectName("drawModeComboBox")
         self.paint_layout.addWidget(self.draw_mode_combo_box)
@@ -392,50 +451,3 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.vertical_layout.addWidget(self.algorithm_group_box)
         self.horizontal_layout.addWidget(self.vertical_layout_widget)
-
-    def setup_ui(self):
-        """Setup the main UI layout."""
-        self.setObjectName("MainWindow")
-        self.setMinimumSize(824, 624)
-
-        self.centralwidget = QtWidgets.QWidget(self)
-        self.centralwidget.setObjectName("centralwidget")
-
-        self.grid_layout = QtWidgets.QGridLayout(self.centralwidget)
-        self.grid_layout.setObjectName("gridLayout")
-
-        self.horizontal_layout = QtWidgets.QHBoxLayout()
-        self.horizontal_layout.setObjectName("horizontalLayout")
-        self.horizontal_layout.setContentsMargins(8, 8, 8, 8)
-        self.horizontal_layout.setAlignment(Qt.AlignCenter)
-
-        self.vertical_layout_widget = QtWidgets.QWidget(self.centralwidget)
-        self.vertical_layout_widget.setObjectName("verticalLayoutWidget")
-        self.vertical_layout_widget.setGeometry(QtCore.QRect(0, 0, 210, 582))
-        self.vertical_layout_widget.setFixedSize(210, 582)
-
-        self.vertical_layout = QtWidgets.QVBoxLayout(
-            self.vertical_layout_widget,
-        )
-        self.vertical_layout.setObjectName("verticalLayout")
-
-        self._setup_settings_group_box()
-        self._setup_algorithm_group_box()
-
-        self.grid_widget = SolverGridWidget(50, 50, self.centralwidget)
-        self.grid_widget.setObjectName("gridSolver")
-
-        self.row_label.setText(f"Number of rows: {self.grid_widget.grid.rows}")
-        self.column_label.setText(
-            "Number of columns: "
-            f"{self.grid_widget.grid.columns}",
-        )
-
-        self.row_slider.valueChanged.connect(self._resize_grid)
-        self.column_slider.valueChanged.connect(self._resize_grid)
-
-        self.horizontal_layout.addWidget(self.grid_widget)
-
-        self.grid_layout.addLayout(self.horizontal_layout, 0, 0, 1, 1)
-        self.setCentralWidget(self.centralwidget)
-        QtCore.QMetaObject.connectSlotsByName(self)
